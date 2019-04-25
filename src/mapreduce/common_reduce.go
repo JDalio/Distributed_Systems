@@ -30,10 +30,10 @@ func doReduce(
 			panic(err)
 		}
 
-		var entry map[string][]string
-		reader := bufio.NewReader(file)
 		//in the intermediate file, each line is a map json string
+		reader := bufio.NewReader(file)
 		for {
+			var entry map[string][]string
 			line, _, eof := reader.ReadLine()
 			if eof == io.EOF {
 				break
