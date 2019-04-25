@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 )
 
 func doReduce(
@@ -15,7 +16,7 @@ func doReduce(
 	nMap int, // the number of map tasks that were run ("M" in the paper)
 	reduceF func(key string, values []string) string,
 ) {
-	fmt.Println("Start Reduce")
+	fmt.Println("output file:", outFile)
 	//kvMap is used for collecting kv pairs in all the intermediate files
 	kvMap := make(map[string][]string)
 
@@ -50,26 +51,24 @@ func doReduce(
 	//sort the intermediate kv pairs
 	keys := make([]string, len(kvMap))
 	i := 0
-	for k, _ := range kvMap {
+	for k := range kvMap {
 		keys[i] = k
 		i++
 	}
-
-	//call the user defined function to get results
-	var results []string
-	for _, k := range keys {
-		result := reduceF(k, kvMap[k])
-		results = append(results, result)
-	}
+	sort.Strings(keys)
 
 	//encode and write results to disk
 	file, err := os.OpenFile(outFile, os.O_APPEND|os.O_CREATE, 0644)
 	if err != nil {
 		panic(err)
 	}
+	defer file.Close()
+
 	enc := json.NewEncoder(file)
-	for _, res := range results {
-		err := enc.Encode(res)
+	for _, k := range keys {
+		//call the user defined function to get results
+		result := reduceF(k, kvMap[k])
+		err := enc.Encode(KeyValue{k, result})
 		if err != nil {
 			panic(err)
 		}
