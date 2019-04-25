@@ -1,12 +1,14 @@
 package mapreduce
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"strconv"
 )
 
 // Debugging enabled?
-const debugEnabled = false
+const debugEnabled = true
 
 // debug() will only print if debugEnabled is true
 func debug(format string, a ...interface{}) (n int, err error) {
@@ -29,6 +31,11 @@ const (
 type KeyValue struct {
 	Key   string
 	Value string
+}
+
+type Codec struct {
+	Writers bufio.Writer
+	json.Encoder
 }
 
 // reduceName constructs the name of the intermediate file which map task

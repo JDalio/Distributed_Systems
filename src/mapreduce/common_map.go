@@ -1,7 +1,10 @@
 package mapreduce
 
 import (
+	"encoding/json"
 	"hash/fnv"
+	"io/ioutil"
+	"os"
 )
 
 func doMap(
@@ -11,6 +14,37 @@ func doMap(
 	nReduce int, // the number of reduce task that will be run ("R" in the paper)
 	mapF func(filename string, contents string) []KeyValue,
 ) {
+	//get key value pairs
+	contents, err := ioutil.ReadFile(inFile)
+	if err != nil {
+		panic(err)
+	}
+	kvs := mapF(inFile, string(contents))
+
+	//accumulate pairs with the same key:
+	// { (a,1),(b,1),(a,1),(c,1),(a,1)... } -> { (a,[1,1,1]),(b,[1]),(c,[1])... }
+	kvMap := make(map[string][]string)
+	for _, kv := range kvs {
+		s, _ := kvMap[kv.Key]
+		kvMap[kv.Key] = append(s, kv.Value)
+	}
+
+	files := make([]*os.File, nReduce)
+	for i := 0; i < nReduce; i++ {
+		file, err := os.OpenFile(reduceName(jobName, mapTask, i), os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			panic(err)
+		}
+		files[i] = file
+	}
+	defer closeFiles(files)
+	for k, v := range kvMap {
+		index := ihash(k) % nReduce
+		enc := json.NewEncoder(files[index])
+		enc.Encode(map[string][]string{k: v})
+	}
+	//encode the kvMap and dump it to file
+
 	//
 	// doMap manages one map task: it should read one of the input files
 	// (inFile), call the user-defined map function (mapF) for that file's
@@ -59,4 +93,13 @@ func ihash(s string) int {
 	h := fnv.New32a()
 	h.Write([]byte(s))
 	return int(h.Sum32() & 0x7fffffff)
+}
+
+func closeFiles(files []*os.File) {
+	for i := 0; i < len(files); i++ {
+		err := files[i].Close()
+		if err != nil {
+			panic(err)
+		}
+	}
 }
