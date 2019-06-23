@@ -79,7 +79,7 @@ func Sequential(jobName string, files []string, nreduce int,
 	return
 }
 
-// helper function that sends information about all existing
+// util function that sends information about all existing
 // and newly registered workers to channel ch. schedule()
 // reads ch to learn about workers.
 func (mr *Master) forwardRegistrations(ch chan string) {

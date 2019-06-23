@@ -17,7 +17,7 @@ func doReduce(
 ) {
 	//kvChan is the kv Channel which Goroutines could
 	//send kv pairs after reading and reducing
-	kvChan := make(chan map[string][]string)
+	kvChan := make(chan map[string][]string, 16)
 
 	//manageKvChan is for closing kvChan after
 	//Goroutines finish reading and decoding
