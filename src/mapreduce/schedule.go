@@ -35,28 +35,41 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 	// Your code here (Part III, Part IV).
 	//
 	var wg sync.WaitGroup
-	taskLeft := ntasks
+	taskParams := make(chan DoTaskArgs, ntasks)
+
+	//Step1: Yield rpc task Param
 	for i := 0; i < ntasks; i++ {
-		wg.Add(1)
-		//Step1: Yield rpc task Param
 		var fileName string
 		if n_other != 0 {
 			fileName = mapFiles[i]
 		} else {
 			fileName = ""
 		}
-		param := DoTaskArgs{jobName, fileName, phase, i, n_other}
+		taskParams <- DoTaskArgs{jobName, fileName, phase, i, n_other}
+		wg.Add(1)
+	}
 
-		//Step2: Start a goroutinue to wait a register worker to process the task
-		go func(taskLeft *int, param DoTaskArgs, registerChan chan string) {
+	//Step2: For each task, give a goroutine to execute it
+	for param := range taskParams {
+		go func(param DoTaskArgs) {
 			wRpcAddr := <-registerChan
 			defer func() {
-				wg.Done()
 				registerChan <- wRpcAddr
 			}()
-			call(wRpcAddr, "Worker.DoTask", param, nil)
-		}(&taskLeft, param, registerChan)
+			result := call(wRpcAddr, "Worker.DoTask", param, nil)
+			if result {
+				ntasks--
+				if ntasks == 0 {
+					close(taskParams)
+				}
+				wg.Done()
+			} else {
+				taskParams <- param
+			}
+		}(param)
+
 	}
+
 	wg.Wait()
 	fmt.Printf("Schedule: %v done\n", phase)
 }

@@ -17,10 +17,10 @@ func doReduce(
 ) {
 	//kvChan is the kv Channel which Goroutines could
 	//send kv pairs after reading and reducing
-	kvChan := make(chan map[string][]string, 16)
+	kvChan := make(chan map[string][]string)
 
 	//manageKvChan is for closing kvChan after
-	//Goroutines finish reading and decoding
+	//goroutines finish reading and decoding
 	manageKvChan := make(chan int)
 	go func() {
 		for i := 0; i < nMap; i++ {
@@ -62,6 +62,7 @@ func doReduce(
 		}(i)
 	}
 
+	//Step2: put kvs in kvChan to kvMap, and sort them
 	for kv := range kvChan {
 		for k, v := range kv {
 			kvMap[k] = append(kvMap[k], v...)
@@ -86,10 +87,13 @@ func doReduce(
 	enc := json.NewEncoder(file)
 	for _, k := range keys {
 		//call the user defined function to get results
+		if k == "" {
+			continue
+		}
 		result := reduceF(k, kvMap[k])
 		err := enc.Encode(KeyValue{k, result})
 		if err != nil {
-			log.Fatal("doReduce Step1 write encode result:", err)
+			log.Fatal("doReduce Step3 write encode result:", err)
 		}
 	}
 }
