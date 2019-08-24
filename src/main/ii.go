@@ -1,29 +1,36 @@
 package main
 
 import (
+	"../mapreduce"
+	"bytes"
+	"fmt"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 )
-import "fmt"
-import "mapreduce"
 
 // The mapping function is called once for each piece of the input.
 // In this framework, the key is the name of the file that is being processed,
 // and the value is the file's contents. The return value should be a slice of
 // key/value pairs, each represented by a mapreduce.KeyValue.
-func iiMapF(document string, value string) []mapreduce.KeyValue {
-	f := func(ch rune) bool {
-		return !unicode.IsLetter(ch)
+func iiMapF(document string, value string) (res []mapreduce.KeyValue) {
+	// Your code here (Part V).
+	// split by non-alphabetic characters
+	f := func(c rune) bool {
+		return !unicode.IsLetter(c)
 	}
 	words := strings.FieldsFunc(value, f)
-	kvs := make([]mapreduce.KeyValue, len(words))
-	wordSet := make(map[string]bool)
-	for i, word := range words {
-		if _, ok := wordSet[word]; !ok {
-			kvs[i] = mapreduce.KeyValue{word, document}
-			wordSet[word] = true
+	kvMap := make(map[string]string)
+	for _, w := range words {
+		if _, ok := kvMap[w]; !ok {
+			kvMap[w] = document
 		}
+	}
+	kvs := make([]mapreduce.KeyValue, 0)
+	for k, v := range kvMap {
+		kvs = append(kvs, mapreduce.KeyValue{k, v})
 	}
 	return kvs
 }
@@ -32,11 +39,20 @@ func iiMapF(document string, value string) []mapreduce.KeyValue {
 // list of that key's string value (merged across all inputs). The return value
 // should be a single output value for that key.
 func iiReduceF(key string, values []string) string {
-	if key == "" || key == "ACTRESS" {
-		fmt.Println(">>> Find", key)
+	// Your code here (Part V).
+	sort.Strings(values)
+	len := len(values)
+	var buffer bytes.Buffer
+	buffer.WriteString(strconv.Itoa(len))
+	buffer.WriteString(" ")
+	for i := 0; i < len; i++ {
+		if i < len-1 {
+			buffer.WriteString(values[i] + ",")
+		} else {
+			buffer.WriteString(values[i])
+		}
 	}
-	res := fmt.Sprintf("%d %s", len(values), strings.Join(values, ","))
-	return res
+	return buffer.String()
 }
 
 // Can be run in 3 ways:

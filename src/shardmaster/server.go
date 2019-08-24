@@ -1,11 +1,9 @@
 package shardmaster
 
-
 import "raft"
 import "labrpc"
 import "sync"
 import "labgob"
-
 
 type ShardMaster struct {
 	mu      sync.Mutex
@@ -18,11 +16,9 @@ type ShardMaster struct {
 	configs []Config // indexed by config num
 }
 
-
 type Op struct {
 	// Your data here.
 }
-
 
 func (sm *ShardMaster) Join(args *JoinArgs, reply *JoinReply) {
 	// Your code here.
@@ -39,7 +35,6 @@ func (sm *ShardMaster) Move(args *MoveArgs, reply *MoveReply) {
 func (sm *ShardMaster) Query(args *QueryArgs, reply *QueryReply) {
 	// Your code here.
 }
-
 
 //
 // the tester calls Kill() when a ShardMaster instance won't
@@ -59,7 +54,7 @@ func (sm *ShardMaster) Raft() *raft.Raft {
 
 //
 // servers[] contains the ports of the set of
-// servers that will cooperate via Paxos to
+// servers that will cooperate via Raft to
 // form the fault-tolerant shardmaster service.
 // me is the index of the current server in servers[].
 //
