@@ -177,7 +177,7 @@ func (cfg *config) applier(i int, applyCh chan ApplyMsg) {
 
 const SnapShotInterval = 10
 
-// periodically snapshot raft state
+// periodically snapshot tmp state
 func (cfg *config) applierSnap(i int, applyCh chan ApplyMsg) {
 	lastApplied := 0
 	for m := range applyCh {
@@ -573,7 +573,7 @@ func (cfg *config) end() {
 		ncmds := cfg.maxIndex - cfg.maxIndex0   // number of Raft agreements reported
 		cfg.mu.Unlock()
 
-		fmt.Printf("  ... Passed --")
+		fmt.Printf("  ... Passed --\n")
 		fmt.Printf("  %4.1f  %d %4d %7d %4d\n", t, npeers, nrpc, nbytes, ncmds)
 	}
 }
