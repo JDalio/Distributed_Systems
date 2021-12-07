@@ -4,7 +4,7 @@ mrtmp.*
 824-mrinput-*.txt
 /main/diff.out
 /mapreduce/x.txt
-/raft/tmp
+/raft/tmp``
 /pbservice/x.txt
 /kvpaxos/x.txt
 *.so
