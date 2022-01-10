@@ -65,8 +65,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesRequest, reply *AppendEntriesRe
 	<-doneCh
 }
 
-// Leader Send AppendEntries/Heartbeat Routine Entry
-// Only for leader
+// Leader Send AppendEntries/Heartbeat Routine Entry, Only for leader
 func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 	for i, _ := range rf.peers {
 		if i != rf.me {
@@ -82,18 +81,38 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 		}
 	}
 }
-func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *AppendEntriesReply) bool {
-	reply.Term = rf.currentTerm
-	if args.Term < rf.currentTerm {
-		return false
-	}
 
-	if args.Term >= rf.currentTerm {
+// @return Whether follower should reset election timeout
+func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *AppendEntriesReply) bool {
+	reply.Term = rf.CurrentTerm()
+	if args.Term < rf.CurrentTerm() {
+		reply.Success = false
+		return false
+	} else {
 		rf.updateCurrentTerm(args.Term, args.LeaderId)
 	}
 
-	if rf.State() == Candidate {
-		rf.SetState(Follower)
+	if !rf.log.hasLog(args.PrevLogIndex, args.PrevLogTerm) {
+		rf.log.deleteFrom(args.PrevLogIndex)
+		reply.Success = false
+		return true
+	}
+
+	rf.log.appendMany(args.Entries)
+
+	if args.LeaderCommit > rf.CommitIndex() {
+		lastIndex, _ := rf.log.lastInfo()
+		if lastIndex < args.LeaderCommit {
+			rf.setCommitIndex(lastIndex)
+		} else {
+			rf.setCommitIndex(args.LeaderCommit)
+		}
+	}
+
+	if rf.LastApplied() < rf.CommitIndex() {
+		for rf.LastApplied() <= rf.CommitIndex() {
+			rf.apply(rf.LastApplied())
+		}
 	}
 
 	reply.Success = true
@@ -117,9 +136,8 @@ func (rf *Raft) Start(command interface{}) (index int, term int, isLeader bool) 
 	}
 
 	// Your code here (2B).
-	// TODO Append Command First
+	rf.log.appendOne(command, index, term)
 	rf.sendAppendEntries(rf.c)
-
 	return
 }
 
@@ -276,7 +294,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.votedFor = -1
 
 	rf.log = &Log{}
-	rf.log.entries = []*LogEntry{&LogEntry{nil, -1, 0}}
+	rf.log.entries = []*LogEntry{newLogEntry(nil, 0, -1)}
 
 	rf.applyCh = applyCh
 	rf.appendEntriesRespChan = make(chan *AppendEntriesReply)

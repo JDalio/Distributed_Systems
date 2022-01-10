@@ -7,7 +7,7 @@ type AppendEntriesRequest struct {
 	LeaderCommit int
 
 	PrevLogIndex int
-	PervLogTerm  int
+	PrevLogTerm  int
 
 	Entries []*LogEntry
 }

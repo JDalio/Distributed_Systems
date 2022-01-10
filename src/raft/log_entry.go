@@ -2,6 +2,10 @@ package raft
 
 type LogEntry struct {
 	Command interface{}
-	Term    int
 	Index   int
+	Term    int
+}
+
+func newLogEntry(command interface{}, index int, term int) *LogEntry {
+	return &LogEntry{command, index, term}
 }

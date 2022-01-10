@@ -2,6 +2,7 @@ package raft
 
 import (
 	"6.824/labrpc"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -35,7 +36,7 @@ type Raft struct {
 	appendEntriesRespChan chan *AppendEntriesReply
 
 	// Volatile state on all servers
-	lastApplied int // 0...
+	lastApplied int // 0... race at rf.apply
 	commitIndex int // 0...
 
 	// Volatile state on leaders. Reinitialized after election
@@ -46,9 +47,6 @@ type Raft struct {
 	c       chan *ev
 }
 
-//func (rf *Raft) appendEntries(prevLogIndex int,prevLogTerm int,)  {
-//
-//}
 func (rf *Raft) getPrevLogInfo(serverIdx int) (prevLogIndex int, prevLogTerm int) {
 	rf.mu.RLock()
 	defer rf.mu.RUnlock()
@@ -66,11 +64,29 @@ func (rf *Raft) getAppendEntries(serverIdx int) []*LogEntry {
 	}
 	return rf.log.entries[nextIndex:lastIndex]
 }
-
+func (rf *Raft) LastApplied() int {
+	rf.mu.RLock()
+	defer rf.mu.RUnlock()
+	return rf.lastApplied
+}
 func (rf *Raft) CommitIndex() int {
 	rf.mu.RLock()
 	defer rf.mu.RUnlock()
 	return rf.commitIndex
+}
+func (rf *Raft) setCommitIndex(commitIndex int) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	rf.commitIndex = commitIndex
+}
+
+// sync apply command to state machine
+func (rf *Raft) apply(index int) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	entry := rf.log.get(index)
+	fmt.Printf("[Apply LogEntry] %s", entry.Command)
+	rf.lastApplied++
 }
 func (rf *Raft) NextIndex(serverIdx int) int {
 	rf.mu.RLock()
@@ -132,9 +148,6 @@ func (rf *Raft) setCurrentTerm(term int) {
 }
 func (rf *Raft) updateCurrentTerm(term int, leaderId int) {
 	state := rf.State()
-	if state == Leader {
-		//TODO stop heartbeat before step-down
-	}
 	if state != Follower {
 		rf.SetState(Follower)
 	}
