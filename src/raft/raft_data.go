@@ -2,7 +2,6 @@ package raft
 
 import (
 	"6.824/labrpc"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -74,18 +73,19 @@ func (rf *Raft) CommitIndex() int {
 	defer rf.mu.RUnlock()
 	return rf.commitIndex
 }
+func (rf *Raft) incrCommitIndex() {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	rf.commitIndex++
+}
 func (rf *Raft) setCommitIndex(commitIndex int) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	rf.commitIndex = commitIndex
 }
-
-// sync apply command to state machine
-func (rf *Raft) apply(index int) {
+func (rf *Raft) incrLastApplied() {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	entry := rf.log.get(index)
-	fmt.Printf("[Apply LogEntry] %s", entry.Command)
 	rf.lastApplied++
 }
 func (rf *Raft) NextIndex(serverIdx int) int {
@@ -104,6 +104,17 @@ func (rf *Raft) initLogIndex() {
 		rf.nextIndex[i] = index + 1
 		rf.matchIndex[i] = 0
 	}
+}
+func (rf *Raft) updateFollowerIndex(serverIdx int, prevLogIndex int, entriesLen int) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	rf.matchIndex[serverIdx] = prevLogIndex + entriesLen
+	rf.nextIndex[serverIdx] = rf.matchIndex[serverIdx] + 1
+}
+func (rf *Raft) decrNextIndex(serverIdx int) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	rf.nextIndex[serverIdx]--
 }
 
 // leader race option

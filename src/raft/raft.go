@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"fmt"
 	"time"
 
 	//	"6.824/labgob"
@@ -85,6 +86,7 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 // @return Whether follower should reset election timeout
 func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *AppendEntriesReply) bool {
 	reply.Term = rf.CurrentTerm()
+	reply.me = rf.me
 	if args.Term < rf.CurrentTerm() {
 		reply.Success = false
 		return false
@@ -109,18 +111,47 @@ func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *A
 		}
 	}
 
-	if rf.LastApplied() < rf.CommitIndex() {
-		for rf.LastApplied() <= rf.CommitIndex() {
-			rf.apply(rf.LastApplied())
-		}
-	}
+	rf.apply()
 
 	reply.Success = true
 	return true
 }
 func (rf *Raft) processAppendEntriesReply(reply *AppendEntriesReply, args *AppendEntriesRequest) {
-	if reply.Term > rf.currentTerm {
+	if reply.Term > rf.CurrentTerm() {
 		rf.updateCurrentTerm(reply.Term, -1)
+	}
+
+	if reply.Success {
+		rf.updateFollowerIndex(reply.me, args.PrevLogIndex, len(args.Entries))
+	} else {
+		rf.decrNextIndex(reply.me)
+	}
+
+	index, _ := rf.log.lastInfo()
+	for rf.CommitIndex() < index {
+		quorumNum := 0
+		for i, _ := range rf.peers {
+			if i != rf.me && rf.matchIndex[i] >= rf.CommitIndex() {
+				quorumNum++
+			}
+		}
+		if quorumNum >= rf.QuorumSize() {
+			rf.incrCommitIndex()
+		}
+	}
+
+	rf.apply()
+}
+
+// sync apply command to state machine
+func (rf *Raft) apply() {
+	if rf.LastApplied() < rf.CommitIndex() {
+		for rf.LastApplied() <= rf.CommitIndex() {
+			entry := rf.log.get(rf.LastApplied())
+			fmt.Printf("[Apply LogEntry] %s", entry)
+			rf.applyCh <- newApplyMsg(true, *entry, false, nil, 0, -1)
+			rf.incrLastApplied()
+		}
 	}
 }
 

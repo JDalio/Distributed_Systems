@@ -22,3 +22,15 @@ type ApplyMsg struct {
 	SnapshotTerm  int
 	SnapshotIndex int
 }
+
+func newApplyMsg(valid bool, entry LogEntry, sValid bool, snap []byte, sIndex int, sTerm int) ApplyMsg {
+	return ApplyMsg{
+		valid,
+		entry.Command,
+		entry.Index,
+		sValid,
+		snap,
+		sTerm,
+		sIndex,
+	}
+}
