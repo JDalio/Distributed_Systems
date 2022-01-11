@@ -114,7 +114,9 @@ func (rf *Raft) updateFollowerIndex(serverIdx int, prevLogIndex int, entriesLen 
 func (rf *Raft) decrNextIndex(serverIdx int) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	rf.nextIndex[serverIdx]--
+	if rf.nextIndex[serverIdx] > 1 {
+		rf.nextIndex[serverIdx]--
+	}
 }
 
 // leader race option

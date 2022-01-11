@@ -1,9 +1,7 @@
 package raft
 
 import (
-	"fmt"
 	"time"
-
 	//	"6.824/labgob"
 	"6.824/labrpc"
 )
@@ -71,7 +69,7 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 	for i, _ := range rf.peers {
 		if i != rf.me {
 			prevLogIndex, prevLogTerm := rf.getPrevLogInfo(i)
-			entries := rf.getAppendEntries(prevLogIndex)
+			entries := rf.getAppendEntries(i)
 			go func(serverIdx int, request *AppendEntriesRequest, ch chan *ev) {
 				reply := newAppendEntriesReply()
 				rf.peers[serverIdx].Call("Raft.AppendEntries", request, reply)
@@ -86,7 +84,7 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 // @return Whether follower should reset election timeout
 func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *AppendEntriesReply) bool {
 	reply.Term = rf.CurrentTerm()
-	reply.me = rf.me
+	reply.Me = rf.me
 	if args.Term < rf.CurrentTerm() {
 		reply.Success = false
 		return false
@@ -122,9 +120,9 @@ func (rf *Raft) processAppendEntriesReply(reply *AppendEntriesReply, args *Appen
 	}
 
 	if reply.Success {
-		rf.updateFollowerIndex(reply.me, args.PrevLogIndex, len(args.Entries))
-	} else {
-		rf.decrNextIndex(reply.me)
+		rf.updateFollowerIndex(reply.Me, args.PrevLogIndex, len(args.Entries))
+	} else if reply.Term <= args.Term {
+		rf.decrNextIndex(reply.Me)
 	}
 
 	index, _ := rf.log.lastInfo()
@@ -148,7 +146,6 @@ func (rf *Raft) apply() {
 	if rf.LastApplied() < rf.CommitIndex() {
 		for rf.LastApplied() <= rf.CommitIndex() {
 			entry := rf.log.get(rf.LastApplied())
-			fmt.Printf("[Apply LogEntry] %s", entry)
 			rf.applyCh <- newApplyMsg(true, *entry, false, nil, 0, -1)
 			rf.incrLastApplied()
 		}

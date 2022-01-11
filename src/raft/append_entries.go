@@ -13,7 +13,7 @@ type AppendEntriesRequest struct {
 }
 
 type AppendEntriesReply struct {
-	me      int
+	Me      int
 	Term    int
 	Success bool
 }

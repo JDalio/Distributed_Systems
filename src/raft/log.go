@@ -36,7 +36,7 @@ func (l *Log) appendMany(entries []*LogEntry) {
 }
 
 func (l *Log) hasLog(prevLogIndex int, prevLogTerm int) bool {
-	l.mu.RUnlock()
+	l.mu.RLock()
 	defer l.mu.RUnlock()
 	if prevLogIndex > len(l.entries)-1 || prevLogTerm != l.entries[prevLogIndex].Term {
 		return false
