@@ -76,9 +76,11 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 				rf.peers[serverIdx].Call("Raft.AppendEntries", request, reply)
 				res := &ev{reply, request, nil}
 
-				replyStr, _ := huge.ToIndentJSON(reply)
-				reqStr, _ := huge.ToIndentJSON(request)
-				DPrintf("---AppendEntries %d---\n%v\n%v\n", serverIdx, reqStr, replyStr)
+				if len(request.Entries) > 0 {
+					replyStr, _ := huge.ToIndentJSON(reply)
+					reqStr, _ := huge.ToIndentJSON(request)
+					DPrintf("---AppendEntries %d---\n%v\n%v\n", serverIdx, reqStr, replyStr)
+				}
 
 				respCh <- res
 			}(i,
@@ -93,6 +95,10 @@ func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *A
 	reply.Term = rf.CurrentTerm()
 	reply.Me = rf.me
 	if args.Term < rf.CurrentTerm() {
+		// Candidate Discover New Leader
+		if rf.State() == Candidate {
+			rf.updateCurrentTerm(args.Term, args.LeaderId)
+		}
 		reply.Success = false
 		return false
 	} else {
