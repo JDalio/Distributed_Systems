@@ -23,6 +23,9 @@ func (rf *Raft) RequestVote(args *RequestVoteRequest, reply *RequestVoteReply) {
 }
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteRequest, reply *RequestVoteReply, respCh chan *RequestVoteReply) bool {
 	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
+	if !ok {
+		return false
+	}
 	respCh <- reply
 	return ok
 }
@@ -73,7 +76,10 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 			entries := rf.getAppendEntries(i)
 			go func(serverIdx int, request *AppendEntriesRequest, ch chan *ev) {
 				reply := newAppendEntriesReply()
-				rf.peers[serverIdx].Call("Raft.AppendEntries", request, reply)
+				ok := rf.peers[serverIdx].Call("Raft.AppendEntries", request, reply)
+				if !ok {
+					return
+				}
 				res := &ev{reply, request, nil}
 
 				if len(request.Entries) > 0 {
@@ -94,13 +100,13 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *AppendEntriesReply) bool {
 	reply.Term = rf.CurrentTerm()
 	reply.Me = rf.me
+	isLeaderLowerTerm := false
 	if args.Term < rf.CurrentTerm() {
 		// Candidate Discover New Leader
 		if rf.State() == Candidate {
-			rf.updateCurrentTerm(args.Term, args.LeaderId)
+			rf.updateCurrentTerm(rf.CurrentTerm(), args.LeaderId)
 		}
-		reply.Success = false
-		return false
+		isLeaderLowerTerm = true
 	} else {
 		rf.updateCurrentTerm(args.Term, args.LeaderId)
 	}
@@ -124,12 +130,13 @@ func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *A
 
 	rf.apply()
 
-	reply.Success = true
+	reply.Success = !isLeaderLowerTerm
 	return true
 }
 func (rf *Raft) processAppendEntriesReply(reply *AppendEntriesReply, args *AppendEntriesRequest) {
 	if reply.Term > rf.CurrentTerm() {
 		rf.updateCurrentTerm(reply.Term, -1)
+		return
 	}
 
 	if reply.Success {
@@ -209,6 +216,7 @@ func (rf *Raft) eventLoop() {
 	}
 }
 func (rf *Raft) followerLoop() {
+	DPrintf("[Become Follower] %d", rf.me)
 	timeoutCh := afterBetween(rf.me, ElectionTimeout, ElectionTimeoutFactor*ElectionTimeout)
 
 	for rf.State() == Follower {
@@ -233,6 +241,7 @@ func (rf *Raft) followerLoop() {
 	}
 }
 func (rf *Raft) candidateLoop() {
+	DPrintf("[Become Candidate] %d", rf.me)
 	var timeoutCh <-chan time.Time
 	doVote := true
 	voteGranted := 0
@@ -284,6 +293,7 @@ func (rf *Raft) candidateLoop() {
 	}
 }
 func (rf *Raft) leaderLoop() {
+	DPrintf("[Become Leader] %d", rf.me)
 	rf.setLeader(rf.me)
 	rf.votedFor = -1
 	rf.initLogIndex()
