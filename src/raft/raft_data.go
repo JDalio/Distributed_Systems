@@ -61,12 +61,7 @@ func (rf *Raft) getAppendEntries(serverIdx int) []*LogEntry {
 	if nextIndex > lastIndex {
 		return nil
 	}
-	return rf.log.entries[nextIndex:lastIndex]
-}
-func (rf *Raft) LastApplied() int {
-	rf.mu.RLock()
-	defer rf.mu.RUnlock()
-	return rf.lastApplied
+	return rf.log.entries[nextIndex : lastIndex+1]
 }
 func (rf *Raft) CommitIndex() int {
 	rf.mu.RLock()
@@ -78,15 +73,15 @@ func (rf *Raft) incrCommitIndex() {
 	defer rf.mu.Unlock()
 	rf.commitIndex++
 }
+func (rf *Raft) decrCommitIndex() {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	rf.commitIndex--
+}
 func (rf *Raft) setCommitIndex(commitIndex int) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	rf.commitIndex = commitIndex
-}
-func (rf *Raft) incrLastApplied() {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-	rf.lastApplied++
 }
 func (rf *Raft) NextIndex(serverIdx int) int {
 	rf.mu.RLock()

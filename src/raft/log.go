@@ -1,6 +1,9 @@
 package raft
 
-import "sync"
+import (
+	huge "github.com/dablelv/go-huge-util"
+	"sync"
+)
 
 type Log struct {
 	mu sync.RWMutex
@@ -26,7 +29,12 @@ func (l *Log) getLogEntryTerm(logIndex int) (term int) {
 func (l *Log) appendOne(command interface{}, index int, term int) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.entries = append(l.entries, newLogEntry(command, index, term))
+	entry := newLogEntry(command, index, term)
+
+	str, _ := huge.ToIndentJSON(entry)
+	DPrintf("\n---Append One---\n%v\n", str)
+
+	l.entries = append(l.entries, entry)
 }
 
 func (l *Log) appendMany(entries []*LogEntry) {

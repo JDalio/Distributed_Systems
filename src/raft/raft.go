@@ -1,6 +1,7 @@
 package raft
 
 import (
+	huge "github.com/dablelv/go-huge-util"
 	"time"
 	//	"6.824/labgob"
 	"6.824/labrpc"
@@ -64,7 +65,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesRequest, reply *AppendEntriesRe
 	<-doneCh
 }
 
-// Leader Send AppendEntries/Heartbeat Routine Entry, Only for leader
+// Send AppendEntries/Heartbeat Routine Entry, Only for Leader
 func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 	for i, _ := range rf.peers {
 		if i != rf.me {
@@ -73,7 +74,13 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 			go func(serverIdx int, request *AppendEntriesRequest, ch chan *ev) {
 				reply := newAppendEntriesReply()
 				rf.peers[serverIdx].Call("Raft.AppendEntries", request, reply)
-				respCh <- &ev{reply, request, nil}
+				res := &ev{reply, request, nil}
+
+				replyStr, _ := huge.ToIndentJSON(reply)
+				reqStr, _ := huge.ToIndentJSON(request)
+				DPrintf("---AppendEntries %d---\n%v\n%v\n", serverIdx, reqStr, replyStr)
+
+				respCh <- res
 			}(i,
 				newAppendEntriesRequest(rf.CurrentTerm(), rf.me, rf.CommitIndex(), prevLogIndex, prevLogTerm, entries),
 				respCh)
@@ -125,9 +132,9 @@ func (rf *Raft) processAppendEntriesReply(reply *AppendEntriesReply, args *Appen
 		rf.decrNextIndex(reply.Me)
 	}
 
-	index, _ := rf.log.lastInfo()
-	for rf.CommitIndex() < index {
-		quorumNum := 0
+	lastIndex, _ := rf.log.lastInfo()
+	for rf.incrCommitIndex(); lastIndex > 0 && rf.CommitIndex() <= lastIndex; {
+		quorumNum := 1
 		for i, _ := range rf.peers {
 			if i != rf.me && rf.matchIndex[i] >= rf.CommitIndex() {
 				quorumNum++
@@ -135,21 +142,16 @@ func (rf *Raft) processAppendEntriesReply(reply *AppendEntriesReply, args *Appen
 		}
 		if quorumNum >= rf.QuorumSize() {
 			rf.incrCommitIndex()
+		} else {
+			break
 		}
+		DPrintf("[Quorum] Index:%d Size:%d", rf.CommitIndex()-1, quorumNum)
+	}
+	if rf.CommitIndex() > lastIndex {
+		rf.decrCommitIndex()
 	}
 
 	rf.apply()
-}
-
-// sync apply command to state machine
-func (rf *Raft) apply() {
-	if rf.LastApplied() < rf.CommitIndex() {
-		for rf.LastApplied() <= rf.CommitIndex() {
-			entry := rf.log.get(rf.LastApplied())
-			rf.applyCh <- newApplyMsg(true, *entry, false, nil, 0, -1)
-			rf.incrLastApplied()
-		}
-	}
 }
 
 // StartCommand Routine Entry
@@ -158,6 +160,8 @@ func (rf *Raft) Start(command interface{}) (index int, term int, isLeader bool) 
 	term, isLeader = rf.GetState()
 	index, _ = rf.log.lastInfo()
 	index++
+
+	DPrintf("---Me:%d isLeader: %t---", rf.me, isLeader)
 
 	if !isLeader {
 		return
@@ -310,6 +314,22 @@ func (rf *Raft) leaderLoop() {
 	}
 }
 
+// apply command to state machine
+func (rf *Raft) apply() {
+	commitIndex := rf.CommitIndex()
+	if rf.lastApplied < commitIndex {
+		for rf.lastApplied++; rf.lastApplied <= commitIndex; rf.lastApplied++ {
+			entry := rf.log.get(rf.lastApplied)
+
+			str, _ := huge.ToIndentJSON(entry)
+			_, isLearder := rf.GetState()
+			DPrintf("---Apply Me:%d isLeader:%t---\n%v\n", rf.me, isLearder, str)
+
+			rf.applyCh <- newApplyMsg(true, *entry, false, nil, 0, -1)
+		}
+		rf.lastApplied--
+	}
+}
 func Make(peers []*labrpc.ClientEnd, me int,
 	persister *Persister, applyCh chan ApplyMsg) *Raft {
 	rf := &Raft{}
