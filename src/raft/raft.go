@@ -43,7 +43,7 @@ func (rf *Raft) processVoteRequest(args *RequestVoteRequest, reply *RequestVoteR
 
 	lastLogIndex, lastLogTerm := rf.log.lastInfo()
 	canVote := rf.votedFor == -1 || rf.votedFor == args.CandidateId
-	isUpToDate := args.Term > lastLogTerm || (args.Term == lastLogTerm && args.LastLogIndex >= lastLogIndex)
+	isUpToDate := args.LastLogTerm > lastLogTerm || (args.LastLogTerm == lastLogTerm && args.LastLogIndex >= lastLogIndex)
 	if canVote && isUpToDate {
 		reply.VoteGranted = true
 		return true
@@ -82,11 +82,13 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 				}
 				res := &ev{reply, request, nil}
 
-				if len(request.Entries) > 0 {
+				rf.log.mu.RLock()
+				if request.Entries != nil {
 					replyStr, _ := huge.ToIndentJSON(reply)
 					reqStr, _ := huge.ToIndentJSON(request)
 					DPrintf("---AppendEntries %d---\n%v\n%v\n", serverIdx, reqStr, replyStr)
 				}
+				rf.log.mu.RUnlock()
 
 				respCh <- res
 			}(i,
@@ -100,13 +102,15 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *AppendEntriesReply) bool {
 	reply.Term = rf.CurrentTerm()
 	reply.Me = rf.me
-	isLeaderLowerTerm := false
+
 	if args.Term < rf.CurrentTerm() {
+		reply.Success = false
 		// Candidate Discover New Leader
 		if rf.State() == Candidate {
 			rf.updateCurrentTerm(rf.CurrentTerm(), args.LeaderId)
+			return true
 		}
-		isLeaderLowerTerm = true
+		return false
 	} else {
 		rf.updateCurrentTerm(args.Term, args.LeaderId)
 	}
@@ -117,7 +121,7 @@ func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *A
 		return true
 	}
 
-	rf.log.appendMany(args.Entries)
+	rf.log.overwrite(args.Entries)
 
 	if args.LeaderCommit > rf.CommitIndex() {
 		lastIndex, _ := rf.log.lastInfo()
@@ -130,7 +134,7 @@ func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *A
 
 	rf.apply()
 
-	reply.Success = !isLeaderLowerTerm
+	reply.Success = true
 	return true
 }
 func (rf *Raft) processAppendEntriesReply(reply *AppendEntriesReply, args *AppendEntriesRequest) {

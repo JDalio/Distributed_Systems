@@ -345,8 +345,6 @@ loop:
 			continue
 		}
 
-		cfg.show()
-
 		for ii := 0; ii < iters; ii++ {
 			x := 100 + ii
 			ok := false
@@ -383,6 +381,7 @@ func TestRejoin2B(t *testing.T) {
 	// leader network failure
 	leader1 := cfg.checkOneLeader()
 	cfg.disconnect(leader1)
+	t.Logf("----------1.Disconnect Leader1:%d---------", leader1)
 
 	// make old leader try to agree on some entries
 	cfg.rafts[leader1].Start(102)
@@ -391,20 +390,26 @@ func TestRejoin2B(t *testing.T) {
 
 	// new leader commits, also for index=2
 	cfg.one(103, 2, true)
+	t.Logf("----------New Leader Should Come---------")
 
 	// new leader network failure
 	leader2 := cfg.checkOneLeader()
 	cfg.disconnect(leader2)
+	t.Logf("----------2.Disconnect Leader2:%d---------", leader2)
 
 	// old leader connected again
 	cfg.connect(leader1)
+	t.Logf("----------3.Reconnect Leader1:%d---------", leader1)
 
 	cfg.one(104, 2, true)
 
 	// all together now
 	cfg.connect(leader2)
+	t.Logf("----------4.Reconnect Leader2:%d---------", leader2)
 
 	cfg.one(105, servers, true)
+
+	cfg.show()
 
 	cfg.end()
 }

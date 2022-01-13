@@ -39,17 +39,22 @@ func (l *Log) appendOne(command interface{}, term int) int {
 	return index
 }
 
-func (l *Log) appendMany(entries []*LogEntry) {
+func (l *Log) overwrite(entries []*LogEntry) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	idx := -1
 	for _, entry := range entries {
-		idx := entry.Index
-		term := entry.Term
-		if idx < len(l.entries) && l.entries[idx].Term == term {
+		idx = entry.Index
+		if idx < len(l.entries) {
 			l.entries[idx] = entry
 		} else {
 			l.entries = append(l.entries, entry)
 		}
+	}
+
+	if idx != -1 && idx < len(l.entries)-1 {
+		l.entries = l.entries[:idx+1]
 	}
 }
 func (l *Log) show() string {
@@ -70,7 +75,9 @@ func (l *Log) hasLog(prevLogIndex int, prevLogTerm int) bool {
 func (l *Log) deleteFrom(index int) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.entries = l.entries[0:index]
+	if index <= len(l.entries) {
+		l.entries = l.entries[0:index]
+	}
 }
 
 func (l *Log) get(index int) *LogEntry {
