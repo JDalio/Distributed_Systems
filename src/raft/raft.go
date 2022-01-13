@@ -184,13 +184,15 @@ func (rf *Raft) apply() {
 		rf.lastApplied--
 	}
 }
+func (rf *Raft) Show() {
+	term, isLeader := rf.GetState()
+	DPrintf("----------\nMe:%d Term:%d Leader:%t CommitIndex:%d\n---Logs---\n%v\n----------\n", rf.me, term, isLeader, rf.CommitIndex(), rf.log.show())
+}
 
 // StartCommand Routine Entry
 // {@race rf.log, rf.nextIndex, rf.commitIndex}
 func (rf *Raft) Start(command interface{}) (index int, term int, isLeader bool) {
 	term, isLeader = rf.GetState()
-	index, _ = rf.log.lastInfo()
-	index++
 
 	DPrintf("---Me:%d isLeader: %t---", rf.me, isLeader)
 
@@ -199,7 +201,7 @@ func (rf *Raft) Start(command interface{}) (index int, term int, isLeader bool) 
 	}
 
 	// Your code here (2B).
-	rf.log.appendOne(command, index, term)
+	index = rf.log.appendOne(command, term)
 	rf.sendAppendEntries(rf.c)
 	return
 }

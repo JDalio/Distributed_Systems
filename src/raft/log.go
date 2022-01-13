@@ -26,15 +26,17 @@ func (l *Log) getLogEntryTerm(logIndex int) (term int) {
 	return l.entries[logIndex].Term
 }
 
-func (l *Log) appendOne(command interface{}, index int, term int) {
+func (l *Log) appendOne(command interface{}, term int) int {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	index := len(l.entries)
 	entry := newLogEntry(command, index, term)
+	l.entries = append(l.entries, entry)
 
 	str, _ := huge.ToIndentJSON(entry)
 	DPrintf("\n---Append One---\n%v\n", str)
 
-	l.entries = append(l.entries, entry)
+	return index
 }
 
 func (l *Log) appendMany(entries []*LogEntry) {
@@ -50,7 +52,12 @@ func (l *Log) appendMany(entries []*LogEntry) {
 		}
 	}
 }
-
+func (l *Log) show() string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	str, _ := huge.ToIndentJSON(l.entries)
+	return str
+}
 func (l *Log) hasLog(prevLogIndex int, prevLogTerm int) bool {
 	l.mu.RLock()
 	defer l.mu.RUnlock()

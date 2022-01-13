@@ -367,6 +367,15 @@ func (cfg *config) setlongreordering(longrel bool) {
 	cfg.net.LongReordering(longrel)
 }
 
+func (cfg *config) show() {
+	for i := 0; i < cfg.n; i++ {
+		if cfg.connected[i] {
+			cfg.rafts[i].Show()
+		}
+	}
+
+}
+
 // check that there's exactly one leader.
 // try a few times in case re-elections are needed.
 func (cfg *config) checkOneLeader() int {

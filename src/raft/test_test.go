@@ -345,6 +345,8 @@ loop:
 			continue
 		}
 
+		cfg.show()
+
 		for ii := 0; ii < iters; ii++ {
 			x := 100 + ii
 			ok := false
