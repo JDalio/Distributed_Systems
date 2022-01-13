@@ -61,7 +61,7 @@ func (rf *Raft) getAppendEntries(serverIdx int) []*LogEntry {
 	if nextIndex > lastIndex {
 		return nil
 	}
-	return rf.log.entries[nextIndex : lastIndex+1]
+	return rf.log.getBetween(nextIndex, lastIndex+1)
 }
 func (rf *Raft) CommitIndex() int {
 	rf.mu.RLock()

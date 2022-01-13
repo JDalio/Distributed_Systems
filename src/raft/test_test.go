@@ -226,6 +226,8 @@ func TestFailNoAgree2B(t *testing.T) {
 	cfg.disconnect((leader + 2) % servers)
 	cfg.disconnect((leader + 3) % servers)
 
+	t.Logf("===>Disconnect %d, %d, %d", (leader+1)%servers, (leader+2)%servers, (leader+3)%servers)
+
 	index, _, ok := cfg.rafts[leader].Start(20)
 	if ok != true {
 		t.Fatalf("leader rejected Start()")
@@ -234,7 +236,9 @@ func TestFailNoAgree2B(t *testing.T) {
 		t.Fatalf("expected index 2, got %v", index)
 	}
 
+	t.Logf("===>Sleep 2*ElectionTimeout")
 	time.Sleep(2 * RaftElectionTimeout)
+	t.Logf("===>Finish Sleep 2*ElectionTimeout")
 
 	n, _ := cfg.nCommitted(index)
 	if n > 0 {
@@ -245,6 +249,8 @@ func TestFailNoAgree2B(t *testing.T) {
 	cfg.connect((leader + 1) % servers)
 	cfg.connect((leader + 2) % servers)
 	cfg.connect((leader + 3) % servers)
+
+	t.Logf("===>Reconnect %d, %d, %d", (leader+1)%servers, (leader+2)%servers, (leader+3)%servers)
 
 	// the disconnected majority may have chosen a leader from
 	// among their own ranks, forgetting index 2.
@@ -267,7 +273,7 @@ func TestConcurrentStarts2B(t *testing.T) {
 	cfg := make_config(t, servers, false, false)
 	defer cfg.cleanup()
 
-	cfg.begin("Test (2B): concurrent Start()s")
+	cfg.begin("Test (2B): concurrent Starts")
 
 	var success bool
 loop:

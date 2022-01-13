@@ -40,7 +40,15 @@ func (l *Log) appendOne(command interface{}, index int, term int) {
 func (l *Log) appendMany(entries []*LogEntry) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.entries = append(l.entries, entries...)
+	for _, entry := range entries {
+		idx := entry.Index
+		term := entry.Term
+		if idx < len(l.entries) && l.entries[idx].Term == term {
+			l.entries[idx] = entry
+		} else {
+			l.entries = append(l.entries, entry)
+		}
+	}
 }
 
 func (l *Log) hasLog(prevLogIndex int, prevLogTerm int) bool {
@@ -62,4 +70,10 @@ func (l *Log) get(index int) *LogEntry {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.entries[index]
+}
+
+func (l *Log) getBetween(from int, to int) []*LogEntry {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.entries[from:to]
 }
