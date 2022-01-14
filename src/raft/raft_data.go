@@ -114,6 +114,18 @@ func (rf *Raft) decrNextIndex(serverIdx int) {
 	}
 }
 
+func (rf *Raft) fastBackup(serverIdx int, prevLogIndex int, xIndex int, xTerm int, xLen int) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	if xTerm == -1 {
+		rf.nextIndex[serverIdx] = prevLogIndex - xLen + 1
+	} else if rf.log.hasLog(xIndex, xTerm) {
+		rf.nextIndex[serverIdx] = xIndex + 1
+	} else {
+		rf.nextIndex[serverIdx] = xIndex
+	}
+}
+
 // leader race option
 func (rf *Raft) setLeader(leader int) {
 	rf.mu.Lock()

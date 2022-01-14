@@ -20,6 +20,22 @@ func (l *Log) lastInfo() (index int, term int) {
 	return
 }
 
+func (l *Log) termFirstIndex(term int) int {
+	for _, l := range l.entries {
+		if l.Term == term {
+			return l.Index
+		}
+	}
+	return -1
+}
+
+// 0位置的不算, 有效log长度
+func (l *Log) length() int {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return len(l.entries) - 1
+}
+
 func (l *Log) getLogEntryTerm(logIndex int) (term int) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -63,10 +79,10 @@ func (l *Log) show() string {
 	str, _ := huge.ToIndentJSON(l.entries)
 	return str
 }
-func (l *Log) hasLog(prevLogIndex int, prevLogTerm int) bool {
+func (l *Log) hasLog(index int, term int) bool {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	if prevLogIndex > len(l.entries)-1 || prevLogTerm != l.entries[prevLogIndex].Term {
+	if index > len(l.entries)-1 || term != l.entries[index].Term {
 		return false
 	}
 	return true

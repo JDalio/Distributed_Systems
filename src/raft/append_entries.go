@@ -13,8 +13,14 @@ type AppendEntriesRequest struct {
 }
 
 type AppendEntriesReply struct {
-	Me      int
-	Term    int
+	Me   int
+	Term int
+
+	// Fast Backup
+	XTerm  int
+	XIndex int
+	XLen   int
+
 	Success bool
 }
 

@@ -116,6 +116,18 @@ func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *A
 	}
 
 	if !rf.log.hasLog(args.PrevLogIndex, args.PrevLogTerm) {
+		logLength := rf.log.length()
+		//--- Fast Backup Start ---//
+		if args.PrevLogIndex > logLength {
+			reply.XTerm = -1
+			reply.XIndex = -1
+			reply.XLen = args.PrevLogIndex - logLength
+		} else {
+			reply.XTerm = rf.log.getLogEntryTerm(args.PrevLogIndex)
+			reply.XIndex = rf.log.termFirstIndex(reply.XTerm)
+			reply.XLen = -1
+		}
+		//--- Fast Backup End ---//
 		rf.log.deleteFrom(args.PrevLogIndex)
 		reply.Success = false
 		return true
@@ -133,7 +145,6 @@ func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *A
 	}
 
 	rf.apply()
-
 	reply.Success = true
 	return true
 }
@@ -145,8 +156,9 @@ func (rf *Raft) processAppendEntriesReply(reply *AppendEntriesReply, args *Appen
 
 	if reply.Success {
 		rf.updateFollowerIndex(reply.Me, args.PrevLogIndex, len(args.Entries))
-	} else if reply.Term <= args.Term {
-		rf.decrNextIndex(reply.Me)
+	} else {
+		//rf.decrNextIndex(reply.Me)
+		rf.fastBackup(reply.Me, args.PrevLogIndex, reply.XIndex, reply.XTerm, reply.XLen)
 	}
 
 	lastIndex, _ := rf.log.lastInfo()
@@ -165,6 +177,7 @@ func (rf *Raft) processAppendEntriesReply(reply *AppendEntriesReply, args *Appen
 		}
 		DPrintf("[Quorum] Index:%d Size:%d", rf.CommitIndex()-1, quorumNum)
 	}
+
 	if rf.CommitIndex() > lastIndex {
 		rf.decrCommitIndex()
 	}
@@ -188,6 +201,7 @@ func (rf *Raft) apply() {
 		rf.lastApplied--
 	}
 }
+
 func (rf *Raft) Show() {
 	term, isLeader := rf.GetState()
 	DPrintf("----------\nMe:%d Term:%d Leader:%t CommitIndex:%d\n---Logs---\n%v\n----------\n", rf.me, term, isLeader, rf.CommitIndex(), rf.log.show())
