@@ -73,7 +73,7 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 	for i, _ := range rf.peers {
 		if i != rf.me {
 			prevLogIndex, prevLogTerm := rf.getPrevLogInfo(i)
-			entries := rf.getAppendEntries(i)
+			entries := rf.log.getBetween(prevLogIndex+1, -1)
 			go func(serverIdx int, request *AppendEntriesRequest, ch chan *ev) {
 				reply := newAppendEntriesReply()
 				ok := rf.peers[serverIdx].Call("Raft.AppendEntries", request, reply)
@@ -86,7 +86,7 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 				if request.Entries != nil {
 					replyStr, _ := huge.ToIndentJSON(reply)
 					reqStr, _ := huge.ToIndentJSON(request)
-					DPrintf("---AppendEntries %d---\n%v\n%v\n", serverIdx, reqStr, replyStr)
+					DPrintf("---------->AppendEntries %d---\n%v\n%v\n", serverIdx, reqStr, replyStr)
 				}
 				rf.log.mu.RUnlock()
 
@@ -98,45 +98,55 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 	}
 }
 
-// @return Whether follower should reset election timeout
+// @return Whether Follower/Candidate should reset election timeout
 func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *AppendEntriesReply) bool {
 	reply.Term = rf.CurrentTerm()
 	reply.Me = rf.me
 
+	//Reply false if term < currentTerm
 	if args.Term < rf.CurrentTerm() {
 		reply.Success = false
-		// Candidate Discover New Leader
+		//If AppendEntries RPC received from new leader:
+		//convert to follower
 		if rf.State() == Candidate {
 			rf.updateCurrentTerm(rf.CurrentTerm(), args.LeaderId)
 			return true
 		}
 		return false
-	} else {
-		rf.updateCurrentTerm(args.Term, args.LeaderId)
 	}
 
+	rf.updateCurrentTerm(args.Term, args.LeaderId)
+
+	// Reply false if log doesn't contain an entry at prevLogIndex
+	// whose term matches prevLogTerm
 	if !rf.log.hasLog(args.PrevLogIndex, args.PrevLogTerm) {
-		logLength := rf.log.length()
+		//logLength := rf.log.length()
 		//--- Fast Backup Start ---//
-		if args.PrevLogIndex > logLength {
-			reply.XTerm = -1
-			reply.XIndex = -1
-			reply.XLen = args.PrevLogIndex - logLength
-		} else {
-			reply.XTerm = rf.log.getLogEntryTerm(args.PrevLogIndex)
-			reply.XIndex = rf.log.termFirstIndex(reply.XTerm)
-			reply.XLen = -1
-		}
+		//if args.PrevLogIndex > logLength {
+		//	reply.XTerm = -1
+		//	reply.XIndex = -1
+		//	reply.XLen = args.PrevLogIndex - logLength
+		//} else {
+		//	reply.XTerm = rf.log.getLogEntryTerm(args.PrevLogIndex)
+		//	reply.XIndex = rf.log.termFirstIndex(reply.XTerm)
+		//	reply.XLen = -1
+		//}
 		//--- Fast Backup End ---//
-		rf.log.deleteFrom(args.PrevLogIndex)
+		//rf.log.deleteFrom(args.PrevLogIndex)
 		reply.Success = false
 		return true
 	}
 
+	reply.Success = true
+
 	rf.log.overwrite(args.Entries)
 
-	if args.LeaderCommit > rf.CommitIndex() {
+	//If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
+	cidx := rf.CommitIndex()
+	if args.LeaderCommit > cidx {
 		lastIndex, _ := rf.log.lastInfo()
+		DPrintf("---------->argsIndex:%d commitIndex:%d lastIndex:%d", args.LeaderCommit, cidx, lastIndex)
+
 		if lastIndex < args.LeaderCommit {
 			rf.setCommitIndex(lastIndex)
 		} else {
@@ -145,7 +155,6 @@ func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *A
 	}
 
 	rf.apply()
-	reply.Success = true
 	return true
 }
 func (rf *Raft) processAppendEntriesReply(reply *AppendEntriesReply, args *AppendEntriesRequest) {
@@ -157,44 +166,47 @@ func (rf *Raft) processAppendEntriesReply(reply *AppendEntriesReply, args *Appen
 	if reply.Success {
 		rf.updateFollowerIndex(reply.Me, args.PrevLogIndex, len(args.Entries))
 	} else {
-		//rf.decrNextIndex(reply.Me)
-		rf.fastBackup(reply.Me, args.PrevLogIndex, reply.XIndex, reply.XTerm, reply.XLen)
+		rf.decrNextIndex(reply.Me)
+		//rf.fastBackup(reply.Me, args.PrevLogIndex, reply.XIndex, reply.XTerm, reply.XLen)
 	}
 
 	lastIndex, _ := rf.log.lastInfo()
-	for rf.incrCommitIndex(); lastIndex > 0 && rf.CommitIndex() <= lastIndex; {
+	cmtIndex := rf.CommitIndex()
+	for cmtIndex++; lastIndex > 0 && cmtIndex <= lastIndex; {
 		quorumNum := 1
 		for i, _ := range rf.peers {
-			if i != rf.me && rf.matchIndex[i] >= rf.CommitIndex() {
+			if i != rf.me && rf.matchIndex[i] >= cmtIndex {
 				quorumNum++
 			}
 		}
 		if quorumNum >= rf.QuorumSize() {
-			rf.incrCommitIndex()
+			cmtIndex++
 		} else {
-			rf.decrCommitIndex()
+			cmtIndex--
 			break
 		}
 		DPrintf("[Quorum] Index:%d Size:%d", rf.CommitIndex()-1, quorumNum)
 	}
 
-	if rf.CommitIndex() > lastIndex {
-		rf.decrCommitIndex()
+	if cmtIndex > lastIndex {
+		cmtIndex--
 	}
+	rf.setCommitIndex(cmtIndex)
 
 	rf.apply()
 }
 
-// apply command to state machine
+// If commitIndex > lastApplied: increment lastApplied,
+// apply log[lastApplied] to state machine
 func (rf *Raft) apply() {
 	commitIndex := rf.CommitIndex()
-	if rf.lastApplied < commitIndex {
+	if commitIndex > rf.lastApplied {
 		for rf.lastApplied++; rf.lastApplied <= commitIndex; rf.lastApplied++ {
 			entry := rf.log.get(rf.lastApplied)
 
 			str, _ := huge.ToIndentJSON(entry)
 			_, isLearder := rf.GetState()
-			DPrintf("---Apply Me:%d isLeader:%t---\n%v\n", rf.me, isLearder, str)
+			DPrintf("---------->Apply Me:%d isLeader:%t CommitIndex:%d LastApplied:%d---\n%v\n", rf.me, isLearder, commitIndex, rf.lastApplied, str)
 
 			rf.applyCh <- newApplyMsg(true, *entry, false, nil, 0, -1)
 		}
@@ -202,9 +214,12 @@ func (rf *Raft) apply() {
 	}
 }
 
+func (rf *Raft) peerNum() int {
+	return len(rf.peers)
+}
 func (rf *Raft) Show() {
 	term, isLeader := rf.GetState()
-	DPrintf("----------\nMe:%d Term:%d Leader:%t CommitIndex:%d\n---Logs---\n%v\n----------\n", rf.me, term, isLeader, rf.CommitIndex(), rf.log.show())
+	DPrintf("---------->\nMe:%d Term:%d Leader:%t CommitIndex:%d\n---Logs---\n%v\n----------\n", rf.me, term, isLeader, rf.CommitIndex(), rf.log.show())
 }
 
 // StartCommand Routine Entry

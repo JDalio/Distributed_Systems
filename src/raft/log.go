@@ -73,6 +73,7 @@ func (l *Log) overwrite(entries []*LogEntry) {
 		l.entries = l.entries[:idx+1]
 	}
 }
+
 func (l *Log) show() string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -105,5 +106,8 @@ func (l *Log) get(index int) *LogEntry {
 func (l *Log) getBetween(from int, to int) []*LogEntry {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
+	if to == -1 {
+		return l.entries[from:]
+	}
 	return l.entries[from:to]
 }

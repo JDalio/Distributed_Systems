@@ -434,7 +434,7 @@ func TestBackup2B(t *testing.T) {
 	cfg.disconnect((leader1 + 3) % servers)
 	cfg.disconnect((leader1 + 4) % servers)
 
-	t.Logf("===>Disconnect: %d %d %d, Goup(*%d %d)", leader1+2, leader1+3, leader1+4, leader1, leader1+1)
+	t.Logf("===>Disconnect: %d %d %d, Goup(*%d %d)", (leader1+2)%servers, (leader1+3)%servers, (leader1+4)%servers, leader1, (leader1+1)%servers)
 
 	begin := start
 	// submit lots of commands that won't commit
@@ -444,7 +444,7 @@ func TestBackup2B(t *testing.T) {
 	}
 	end := start - 1
 
-	t.Logf("===>Append Leader-%d Entry[%d - %d]should discord", leader1, begin, end)
+	t.Logf("===>Append Leader-%d Entry[%d - %d]should discard", leader1, begin, end)
 	cfg.show()
 
 	time.Sleep(RaftElectionTimeout / 2)
@@ -452,14 +452,14 @@ func TestBackup2B(t *testing.T) {
 	cfg.disconnect((leader1 + 0) % servers)
 	cfg.disconnect((leader1 + 1) % servers)
 
-	t.Logf("===>Disconnect: Leader-%d %d No Group", leader1+0, leader1+1)
+	t.Logf("===>Disconnect: Leader-%d Follower-%d No Group", leader1, (leader1+1)%servers)
 
 	// allow other partition to recover
 	cfg.connect((leader1 + 2) % servers)
 	cfg.connect((leader1 + 3) % servers)
 	cfg.connect((leader1 + 4) % servers)
 
-	t.Logf("===>Reconnect:Group(%d %d %d) should elect a leader", leader1+2, leader1+3, leader1+4)
+	t.Logf("===>Reconnect:Group(%d %d %d) should elect a leader", (leader1+2)%servers, (leader1+3)%servers, (leader1+4)%servers)
 
 	begin = start
 	// lots of successful commands to new group.
@@ -491,7 +491,7 @@ func TestBackup2B(t *testing.T) {
 	}
 	end = start - 1
 
-	t.Logf("===>Append Leader-%d Entry[%d - %d]make no sense", leader2, start, end)
+	t.Logf("===>Append Leader-%d Entry[%d - %d]make no sense", leader2, begin, end)
 
 	time.Sleep(RaftElectionTimeout / 2)
 
@@ -503,7 +503,7 @@ func TestBackup2B(t *testing.T) {
 	cfg.connect((leader1 + 1) % servers)
 	cfg.connect(other)
 
-	t.Logf("===>Reconnct Group(%d %d %d) make a group", leader1+0, leader1+1, other)
+	t.Logf("===>Reconnct Group(%d %d %d) make a group", leader1, (leader1+1)%servers, other)
 
 	begin = start
 	// lots of successful commands to new group.
@@ -512,7 +512,7 @@ func TestBackup2B(t *testing.T) {
 		start++
 	}
 	end = start - 1
-	t.Logf("===>Append Entry[%d - %d]make sense", start, end)
+	t.Logf("===>Append Entry[%d - %d]make sense", begin, end)
 	cfg.show()
 
 	// now everyone

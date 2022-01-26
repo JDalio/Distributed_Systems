@@ -53,31 +53,13 @@ func (rf *Raft) getPrevLogInfo(serverIdx int) (prevLogIndex int, prevLogTerm int
 	prevLogTerm = rf.log.getLogEntryTerm(prevLogIndex)
 	return
 }
-func (rf *Raft) getAppendEntries(serverIdx int) []*LogEntry {
-	rf.mu.RLock()
-	defer rf.mu.RUnlock()
-	lastIndex, _ := rf.log.lastInfo()
-	nextIndex := rf.nextIndex[serverIdx]
-	if nextIndex > lastIndex {
-		return nil
-	}
-	return rf.log.getBetween(nextIndex, lastIndex+1)
-}
+
 func (rf *Raft) CommitIndex() int {
 	rf.mu.RLock()
 	defer rf.mu.RUnlock()
 	return rf.commitIndex
 }
-func (rf *Raft) incrCommitIndex() {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-	rf.commitIndex++
-}
-func (rf *Raft) decrCommitIndex() {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-	rf.commitIndex--
-}
+
 func (rf *Raft) setCommitIndex(commitIndex int) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
