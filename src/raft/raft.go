@@ -73,6 +73,7 @@ func (rf *Raft) sendAppendEntries(respCh chan *ev) {
 	for i, _ := range rf.peers {
 		if i != rf.me {
 			prevLogIndex, prevLogTerm := rf.getPrevLogInfo(i)
+			// Ensure entries starts from prevLogIndex
 			entries := rf.log.getBetween(prevLogIndex+1, -1)
 			go func(serverIdx int, request *AppendEntriesRequest, ch chan *ev) {
 				reply := newAppendEntriesReply()

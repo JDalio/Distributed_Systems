@@ -59,18 +59,20 @@ func (l *Log) overwrite(entries []*LogEntry) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	idx := -1
-	for _, entry := range entries {
-		idx = entry.Index
-		if idx < len(l.entries) {
-			l.entries[idx] = entry
-		} else {
-			l.entries = append(l.entries, entry)
+	// If an existing entry conflicts with a new one(same index but diff terms),
+	// delete the existing entry and all that follow it
+	for _, e := range entries {
+		if e.Index < len(l.entries) && l.entries[e.Index].Term != e.Term {
+			l.entries = l.entries[:e.Index]
 		}
 	}
 
-	if idx != -1 && idx < len(l.entries)-1 {
-		l.entries = l.entries[:idx+1]
+	// Append any new entries not already in the log
+	for i, e := range entries {
+		if e.Index >= len(l.entries) {
+			l.entries = append(l.entries, entries[i:]...)
+			break
+		}
 	}
 }
 
@@ -89,14 +91,6 @@ func (l *Log) hasLog(index int, term int) bool {
 	return true
 }
 
-func (l *Log) deleteFrom(index int) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if index <= len(l.entries) {
-		l.entries = l.entries[0:index]
-	}
-}
-
 func (l *Log) get(index int) *LogEntry {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -106,8 +100,11 @@ func (l *Log) get(index int) *LogEntry {
 func (l *Log) getBetween(from int, to int) []*LogEntry {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
+	copyEntries := make([]*LogEntry, len(l.entries))
+	copy(copyEntries, l.entries)
+
 	if to == -1 {
-		return l.entries[from:]
+		return copyEntries[from:]
 	}
-	return l.entries[from:to]
+	return copyEntries[from:to]
 }
