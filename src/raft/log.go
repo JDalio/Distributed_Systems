@@ -21,6 +21,8 @@ func (l *Log) lastInfo() (index int, term int) {
 }
 
 func (l *Log) termFirstIndex(term int) int {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	for _, l := range l.entries {
 		if l.Term == term {
 			return l.Index

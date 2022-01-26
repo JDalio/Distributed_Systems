@@ -65,11 +65,7 @@ func (rf *Raft) setCommitIndex(commitIndex int) {
 	defer rf.mu.Unlock()
 	rf.commitIndex = commitIndex
 }
-func (rf *Raft) NextIndex(serverIdx int) int {
-	rf.mu.RLock()
-	defer rf.mu.RUnlock()
-	return rf.nextIndex[serverIdx]
-}
+
 func (rf *Raft) initLogIndex() {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -88,6 +84,7 @@ func (rf *Raft) updateFollowerIndex(serverIdx int, prevLogIndex int, entriesLen 
 	rf.matchIndex[serverIdx] = prevLogIndex + entriesLen
 	rf.nextIndex[serverIdx] = rf.matchIndex[serverIdx] + 1
 }
+
 func (rf *Raft) decrNextIndex(serverIdx int) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -143,11 +140,7 @@ func (rf *Raft) CurrentTerm() int {
 	defer rf.mu.RUnlock()
 	return rf.currentTerm
 }
-func (rf *Raft) setCurrentTerm(term int) {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-	rf.currentTerm = term
-}
+
 func (rf *Raft) updateCurrentTerm(term int, leaderId int) {
 	state := rf.State()
 	if state != Follower {

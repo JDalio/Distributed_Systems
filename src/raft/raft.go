@@ -121,19 +121,18 @@ func (rf *Raft) processAppendEntriesRequest(args *AppendEntriesRequest, reply *A
 	// Reply false if log doesn't contain an entry at prevLogIndex
 	// whose term matches prevLogTerm
 	if !rf.log.hasLog(args.PrevLogIndex, args.PrevLogTerm) {
-		//logLength := rf.log.length()
+		logLength := rf.log.length()
 		//--- Fast Backup Start ---//
-		//if args.PrevLogIndex > logLength {
-		//	reply.XTerm = -1
-		//	reply.XIndex = -1
-		//	reply.XLen = args.PrevLogIndex - logLength
-		//} else {
-		//	reply.XTerm = rf.log.getLogEntryTerm(args.PrevLogIndex)
-		//	reply.XIndex = rf.log.termFirstIndex(reply.XTerm)
-		//	reply.XLen = -1
-		//}
+		if args.PrevLogIndex > logLength {
+			reply.XTerm = -1
+			reply.XIndex = -1
+			reply.XLen = args.PrevLogIndex - logLength
+		} else {
+			reply.XTerm = rf.log.getLogEntryTerm(args.PrevLogIndex)
+			reply.XIndex = rf.log.termFirstIndex(reply.XTerm)
+			reply.XLen = -1
+		}
 		//--- Fast Backup End ---//
-		//rf.log.deleteFrom(args.PrevLogIndex)
 		reply.Success = false
 		return true
 	}
@@ -167,8 +166,8 @@ func (rf *Raft) processAppendEntriesReply(reply *AppendEntriesReply, args *Appen
 	if reply.Success {
 		rf.updateFollowerIndex(reply.Me, args.PrevLogIndex, len(args.Entries))
 	} else {
-		rf.decrNextIndex(reply.Me)
-		//rf.fastBackup(reply.Me, args.PrevLogIndex, reply.XIndex, reply.XTerm, reply.XLen)
+		//rf.decrNextIndex(reply.Me)
+		rf.fastBackup(reply.Me, args.PrevLogIndex, reply.XIndex, reply.XTerm, reply.XLen)
 	}
 
 	lastIndex, _ := rf.log.lastInfo()
@@ -269,6 +268,7 @@ func (rf *Raft) eventLoop() {
 		state = rf.State()
 	}
 }
+
 func (rf *Raft) followerLoop() {
 	DPrintf("[Become Follower] %d", rf.me)
 	timeoutCh := afterBetween(rf.me, ElectionTimeout, ElectionTimeoutFactor*ElectionTimeout)
@@ -294,6 +294,7 @@ func (rf *Raft) followerLoop() {
 		}
 	}
 }
+
 func (rf *Raft) candidateLoop() {
 	DPrintf("[Become Candidate] %d", rf.me)
 	var timeoutCh <-chan time.Time

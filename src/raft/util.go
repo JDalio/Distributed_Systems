@@ -18,6 +18,9 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 	} else if strings.HasPrefix(format, "no---------->") {
 		log.Printf(format, a...)
 	}
+	//if Debug {
+	//	log.Printf(format, a...)
+	//}
 	return
 }
 
