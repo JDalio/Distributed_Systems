@@ -400,7 +400,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.log.entries = []*LogEntry{newLogEntry(nil, 0, -1)}
 
 	rf.applyCh = applyCh
-	rf.appendEntriesRespChan = make(chan *AppendEntriesReply)
 	rf.c = make(chan *ev)
 
 	rf.readPersist(persister.ReadRaftState())

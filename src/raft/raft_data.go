@@ -24,15 +24,14 @@ type Raft struct {
 	peers     []*labrpc.ClientEnd // RPC end points of all peers
 	persister *Persister          // Object to hold this peer's persisted state
 
-	// race means other routine race with main loop
-	me          int // this peer's index into peers[]
-	state       int //race
-	leader      int //race
-	currentTerm int //race
-	votedFor    int
+	me     int
+	state  int
+	leader int
 
-	log                   *Log //race
-	appendEntriesRespChan chan *AppendEntriesReply
+	// Persistent state on all servers
+	currentTerm int
+	votedFor    int
+	log         *Log
 
 	// Volatile state on all servers
 	lastApplied int // 0... race at rf.apply
