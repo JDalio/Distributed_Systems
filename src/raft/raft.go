@@ -166,7 +166,6 @@ func (rf *Raft) processAppendEntriesReply(reply *AppendEntriesReply, args *Appen
 	if reply.Success {
 		rf.updateFollowerIndex(reply.Me, args.PrevLogIndex, len(args.Entries))
 	} else {
-		//rf.decrNextIndex(reply.Me)
 		rf.fastBackup(reply.Me, args.PrevLogIndex, reply.XIndex, reply.XTerm, reply.XLen)
 	}
 
@@ -214,9 +213,6 @@ func (rf *Raft) apply() {
 	}
 }
 
-func (rf *Raft) peerNum() int {
-	return len(rf.peers)
-}
 func (rf *Raft) Show() {
 	term, isLeader := rf.GetState()
 	DPrintf("---------->\nMe:%d Term:%d Leader:%t CommitIndex:%d\n---Logs---\n%v\n----------\n", rf.me, term, isLeader, rf.CommitIndex(), rf.log.show())
@@ -235,6 +231,7 @@ func (rf *Raft) Start(command interface{}) (index int, term int, isLeader bool) 
 
 	// Your code here (2B).
 	index = rf.log.appendOne(command, term)
+	rf.persist()
 	rf.sendAppendEntries(rf.c)
 	return
 }
@@ -280,9 +277,11 @@ func (rf *Raft) followerLoop() {
 			switch req := e.args; req.(type) {
 			case *RequestVoteRequest:
 				update = rf.processVoteRequest(req.(*RequestVoteRequest), e.value.(*RequestVoteReply))
+				rf.persist()
 				e.done <- true
 			case *AppendEntriesRequest:
 				update = rf.processAppendEntriesRequest(req.(*AppendEntriesRequest), e.value.(*AppendEntriesReply))
+				rf.persist()
 				e.done <- true
 			}
 		case <-timeoutCh:
@@ -321,6 +320,7 @@ func (rf *Raft) candidateLoop() {
 
 			voteGranted = 1
 			doVote = false
+			rf.persist()
 		}
 
 		if voteGranted == rf.QuorumSize() {
@@ -337,9 +337,11 @@ func (rf *Raft) candidateLoop() {
 			switch req := e.args; req.(type) {
 			case *RequestVoteRequest:
 				rf.processVoteRequest(req.(*RequestVoteRequest), e.value.(*RequestVoteReply))
+				rf.persist()
 				e.done <- true
 			case *AppendEntriesRequest:
 				rf.processAppendEntriesRequest(req.(*AppendEntriesRequest), e.value.(*AppendEntriesReply))
+				rf.persist()
 				e.done <- true
 			}
 		case <-timeoutCh:
@@ -370,15 +372,19 @@ func (rf *Raft) leaderLoop() {
 			switch req := e.args; req.(type) {
 			case *RequestVoteRequest:
 				rf.processVoteRequest(req.(*RequestVoteRequest), e.value.(*RequestVoteReply))
+				rf.persist()
 				e.done <- true
 			case *AppendEntriesRequest:
 				rf.processAppendEntriesRequest(req.(*AppendEntriesRequest), e.value.(*AppendEntriesReply))
+				rf.persist()
 				e.done <- true
 			case *AppendEntriesReply:
 				rf.processAppendEntriesReply(req.(*AppendEntriesReply), e.value.(*AppendEntriesRequest))
+				rf.persist()
 			}
 		case heartbeatResp := <-heartbeatRespCh:
 			rf.processAppendEntriesReply(heartbeatResp.args.(*AppendEntriesReply), heartbeatResp.value.(*AppendEntriesRequest))
+			rf.persist()
 		case <-heartbeatCh:
 			sendHeartbeat = true
 		}

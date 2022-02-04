@@ -84,14 +84,6 @@ func (rf *Raft) updateFollowerIndex(serverIdx int, prevLogIndex int, entriesLen 
 	rf.nextIndex[serverIdx] = rf.matchIndex[serverIdx] + 1
 }
 
-func (rf *Raft) decrNextIndex(serverIdx int) {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-	if rf.nextIndex[serverIdx] > 1 {
-		rf.nextIndex[serverIdx]--
-	}
-}
-
 func (rf *Raft) fastBackup(serverIdx int, prevLogIndex int, xIndex int, xTerm int, xLen int) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
